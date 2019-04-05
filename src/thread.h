@@ -73,6 +73,13 @@ public:
   CapturePieceToHistory captureHistory;
   ContinuationHistory continuationHistory;
   Score contempt;
+  int FindMate;
+  int redx;
+  Score Pex;
+  Score Kex;
+  Score Bex;
+  Score Rex;
+  Score Qex;
 };
 
 

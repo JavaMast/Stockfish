@@ -228,8 +228,6 @@ namespace {
 
     const Square ksq = pos.square<KING>(Us);
 
-    Bitboard dblAttackByPawn = pawn_double_attacks_bb<Us>(pos.pieces(Us, PAWN));
-
     // Find our pawns that are blocked or on the first two ranks
     Bitboard b = pos.pieces(Us, PAWN) & (shift<Down>(pos.pieces()) | LowRanks);
 
@@ -241,8 +239,7 @@ namespace {
     attackedBy[Us][KING] = pos.attacks_from<KING>(ksq);
     attackedBy[Us][PAWN] = pe->pawn_attacks(Us);
     attackedBy[Us][ALL_PIECES] = attackedBy[Us][KING] | attackedBy[Us][PAWN];
-    attackedBy2[Us]            = (attackedBy[Us][KING] & attackedBy[Us][PAWN])
-                                 | dblAttackByPawn;
+    attackedBy2[Us]            = attackedBy[Us][KING] & attackedBy[Us][PAWN];
 
     // Init our king safety tables
     kingRing[Us] = attackedBy[Us][KING];
@@ -259,7 +256,7 @@ namespace {
     kingAttacksCount[Them] = kingAttackersWeight[Them] = 0;
 
     // Remove from kingRing[] the squares defended by two pawns
-    kingRing[Us] &= ~dblAttackByPawn;
+    kingRing[Us] &= ~pawn_double_attacks_bb<Us>(pos.pieces(Us, PAWN));
   }
 
 
@@ -488,7 +485,7 @@ namespace {
     if (T)
         Trace::add(KING, Us, score);
 
-    return score;
+  return score / pos.this_thread()->FindMate;
   }
 
 
@@ -597,7 +594,7 @@ namespace {
     if (T)
         Trace::add(THREAT, Us, score);
 
-    return score;
+    return score * pos.this_thread()->FindMate;
   }
 
   // Evaluation::passed() evaluates the passed pawns and candidate passed
@@ -808,7 +805,7 @@ namespace {
     // Initialize score by reading the incrementally updated scores included in
     // the position object (material + piece square tables) and the material
     // imbalance. Score is computed internally from the white point of view.
-    Score score = pos.psq_score() + me->imbalance() + pos.this_thread()->contempt;
+    Score score = pos.psq_score()/pos.this_thread()->FindMate + me->imbalance() + pos.this_thread()->contempt;
 
     // Probe the pawn hash table
     pe = Pawns::probe(pos);
@@ -838,6 +835,20 @@ namespace {
             + space<  WHITE>() - space<  BLACK>();
 
     score += initiative(eg_value(score));
+
+//Exchange tune
+
+int Pus = 16 - pos.count<PAWN>();
+int Kus = 4 - pos.count<KNIGHT>();
+int Bus = 4 - pos.count<BISHOP>();
+int Rus = 4 - pos.count<ROOK>();
+int Qus = 2 - pos.count<QUEEN>();
+
+score += pos.this_thread()->Pex * Pus;
+score += pos.this_thread()->Kex * Kus;
+score += pos.this_thread()->Bex * Bus;
+score += pos.this_thread()->Rex * Rus;
+score += pos.this_thread()->Qex * Qus;
 
     // Interpolate between a middlegame and a (scaled by 'sf') endgame score
     ScaleFactor sf = scale_factor(eg_value(score));

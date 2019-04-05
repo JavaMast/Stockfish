@@ -28,6 +28,7 @@
 #include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
+#include "polybook.h"
 
 using std::string;
 
@@ -41,6 +42,9 @@ void on_hash_size(const Option& o) { TT.resize(o); }
 void on_logger(const Option& o) { start_logger(o); }
 void on_threads(const Option& o) { Threads.set(o); }
 void on_tb_path(const Option& o) { Tablebases::init(o); }
+void on_book_file(const Option& o) { polybook.init(o); }
+void on_best_book_move(const Option& o) { polybook.set_best_book_move(o); }
+void on_book_depth(const Option& o) { polybook.set_book_depth(o); }
 
 
 /// Our case insensitive less() function as required by UCI protocol
@@ -59,12 +63,20 @@ void init(OptionsMap& o) {
   constexpr int MaxHashMB = Is64Bit ? 131072 : 2048;
 
   o["Debug Log File"]        << Option("", on_logger);
-  o["Contempt"]              << Option(24, -100, 100);
+  o["FastTacticSolver"]      << Option(false);
+  o["Analysis Toolbox"]      << Option("Neutral var SF-1R var SF-2R var SF-3R var FutilityP var NullmoveP var Probcut var MovecountP var CountermovesP var Futility2P var NegativemovesP var Negativemoves2P var DeepAnalysis var VeryDeepAnalysis var Neutral", "Neutral");
+  o["Contempt"]              << Option(24, -2000, 2000);
+  o["SwapDC"]                << Option(true);
   o["Analysis Contempt"]     << Option("Both var Off var White var Black var Both", "Both");
+  o["Pawn Exchange"]         << Option(0, -1000, 1000);
+  o["Knight Exchange"]       << Option(0, -1000, 1000);
+  o["Bishop Exchange"]       << Option(0, -1000, 1000);
+  o["Rook Exchange"]         << Option(0, -1000, 1000);
+  o["Queen Exchange"]        << Option(0, -1000, 1000);
+  o["Ponder"]                << Option(false);
   o["Threads"]               << Option(1, 1, 512, on_threads);
   o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
   o["Clear Hash"]            << Option(on_clear_hash);
-  o["Ponder"]                << Option(false);
   o["MultiPV"]               << Option(1, 1, 500);
   o["Skill Level"]           << Option(20, 0, 20);
   o["Move Overhead"]         << Option(30, 0, 5000);
@@ -77,6 +89,10 @@ void init(OptionsMap& o) {
   o["SyzygyProbeDepth"]      << Option(1, 1, 100);
   o["Syzygy50MoveRule"]      << Option(true);
   o["SyzygyProbeLimit"]      << Option(7, 0, 7);
+  o["OwnBook"]               << Option(false);
+  o["BookFile"]              << Option("", on_book_file);
+  o["BestBookMove"]          << Option(false, on_best_book_move);
+  o["BookDepth"]             << Option(255, 1, 255, on_book_depth);
 }
 
 
