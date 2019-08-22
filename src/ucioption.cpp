@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2018 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,9 +18,9 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
 #include <cassert>
 #include <ostream>
-#include <sstream>
 
 #include "misc.h"
 #include "search.h"
@@ -28,6 +28,7 @@
 #include "tt.h"
 #include "uci.h"
 #include "syzygy/tbprobe.h"
+#include "polybook.h"
 
 using std::string;
 
@@ -38,9 +39,13 @@ namespace UCI {
 /// 'On change' actions, triggered by an option's value change
 void on_clear_hash(const Option&) { Search::clear(); }
 void on_hash_size(const Option& o) { TT.resize(o); }
+void on_large_pages(const Option& o) { TT.resize(0); }  // warning is ok, will be removed
 void on_logger(const Option& o) { start_logger(o); }
 void on_threads(const Option& o) { Threads.set(o); }
 void on_tb_path(const Option& o) { Tablebases::init(o); }
+void on_book_file(const Option& o) { polybook.init(o); }
+void on_best_book_move(const Option& o) { polybook.set_best_book_move(o); }
+void on_book_depth(const Option& o) { polybook.set_book_depth(o); }
 
 
 /// Our case insensitive less() function as required by UCI protocol
@@ -59,10 +64,11 @@ void init(OptionsMap& o) {
   constexpr int MaxHashMB = Is64Bit ? 131072 : 2048;
 
   o["Debug Log File"]        << Option("", on_logger);
-  o["Contempt"]              << Option(24, -100, 100);
+  o["Contempt"]              << Option(21, -100, 100);
   o["Analysis Contempt"]     << Option("Both var Off var White var Black var Both", "Both");
   o["Threads"]               << Option(1, 1, 512, on_threads);
   o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
+  o["Large Pages"]           << Option(false, on_large_pages);
   o["Clear Hash"]            << Option(on_clear_hash);
   o["Ponder"]                << Option(false);
   o["MultiPV"]               << Option(1, 1, 500);
@@ -77,6 +83,9 @@ void init(OptionsMap& o) {
   o["SyzygyProbeDepth"]      << Option(1, 1, 100);
   o["Syzygy50MoveRule"]      << Option(true);
   o["SyzygyProbeLimit"]      << Option(7, 0, 7);
+  o["BookFile"]              << Option("<empty>", on_book_file);
+  o["BestBookMove"]          << Option(true, on_best_book_move);
+  o["BookDepth"]             << Option(255, 1, 255, on_book_depth);
 }
 
 
@@ -136,8 +145,8 @@ Option::operator std::string() const {
 
 bool Option::operator==(const char* s) const {
   assert(type == "combo");
-  return   !CaseInsensitiveLess()(currentValue, s)
-        && !CaseInsensitiveLess()(s, currentValue);
+  return    !CaseInsensitiveLess()(currentValue, s)
+         && !CaseInsensitiveLess()(s, currentValue);
 }
 
 
@@ -153,8 +162,8 @@ void Option::operator<<(const Option& o) {
 
 
 /// operator=() updates currentValue and triggers on_change() action. It's up to
-/// the GUI to check for option's limits, but we could receive the new value
-/// from the user by console window, so let's check the bounds anyway.
+/// the GUI to check for option's limits, but we could receive the new value from
+/// the user by console window, so let's check the bounds anyway.
 
 Option& Option::operator=(const string& v) {
 
@@ -164,17 +173,6 @@ Option& Option::operator=(const string& v) {
       || (type == "check" && v != "true" && v != "false")
       || (type == "spin" && (stof(v) < min || stof(v) > max)))
       return *this;
-
-  if (type == "combo")
-  {
-      OptionsMap comboMap; // To have case insensitive compare
-      string token;
-      std::istringstream ss(defaultValue);
-      while (ss >> token)
-          comboMap[token] << Option();
-      if (!comboMap.count(v) || v == "var")
-          return *this;
-  }
 
   if (type != "button")
       currentValue = v;
