@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <sys/timeb.h>
 
 PolyBook polybook;  // global PolyBook
+PolyBook polybook2;  // global second PolyBook
 
 using namespace std;
 
@@ -462,11 +463,11 @@ Key PolyBook::polyglot_key(const Position & pos)
         key ^= PG.Zobrist.psq[2 * (type_of(p) - 1) + (color_of(p) == WHITE)][s];
     }
 
-    b = pos.can_castle(ANY_CASTLING);
-
-    while (b)
-        key ^= PG.Zobrist.castle[pop_lsb(&b)];
-
+    if (pos.can_castle(WHITE_OO))  key ^= PG.Zobrist.castle[0];
+    if (pos.can_castle(WHITE_OOO)) key ^= PG.Zobrist.castle[1];
+    if (pos.can_castle(BLACK_OO))  key ^= PG.Zobrist.castle[2];
+    if (pos.can_castle(BLACK_OOO)) key ^= PG.Zobrist.castle[3];
+    
     if (pos.ep_square() != SQ_NONE)
         key ^= PG.Zobrist.enpassant[file_of(pos.ep_square())];
 
