@@ -2,7 +2,7 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2019 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ namespace {
   template<Color Us>
   int imbalance(const int pieceCount[][PIECE_TYPE_NB]) {
 
-    constexpr Color Them = (Us == WHITE ? BLACK : WHITE);
+    constexpr Color Them = ~Us;
 
     int bonus = 0;
 
@@ -129,7 +129,7 @@ Entry* probe(const Position& pos) {
 
   Value npm_w = pos.non_pawn_material(WHITE);
   Value npm_b = pos.non_pawn_material(BLACK);
-  Value npm   = clamp(npm_w + npm_b, EndgameLimit, MidgameLimit);
+  Value npm   = Utility::clamp(npm_w + npm_b, EndgameLimit, MidgameLimit);
 
   // Map total non-pawn material into [PHASE_ENDGAME, PHASE_MIDGAME]
   e->gamePhase = Phase(((npm - EndgameLimit) * PHASE_MIDGAME) / (MidgameLimit - EndgameLimit));
@@ -137,10 +137,10 @@ Entry* probe(const Position& pos) {
   // Let's look if we have a specialized evaluation function for this particular
   // material configuration. Firstly we look for a fixed configuration one, then
   // for a generic one if the previous search failed.
-  if ((e->evaluationFunction = pos.this_thread()->endgames.probe<Value>(key)) != nullptr)
+  if ((e->evaluationFunction = Endgames::probe<Value>(key)) != nullptr)
       return e;
 
-  for (Color c = WHITE; c <= BLACK; ++c)
+  for (Color c : { WHITE, BLACK })
       if (is_KXK(pos, c))
       {
           e->evaluationFunction = &EvaluateKXK[c];
@@ -149,7 +149,7 @@ Entry* probe(const Position& pos) {
 
   // OK, we didn't find any special evaluation function for the current material
   // configuration. Is there a suitable specialized scaling function?
-  const auto* sf = pos.this_thread()->endgames.probe<ScaleFactor>(key);
+  const auto* sf = Endgames::probe<ScaleFactor>(key);
 
   if (sf)
   {
@@ -160,7 +160,7 @@ Entry* probe(const Position& pos) {
   // We didn't find any specialized scaling function, so fall back on generic
   // ones that refer to more than one material distribution. Note that in this
   // case we don't return after setting the function.
-  for (Color c = WHITE; c <= BLACK; ++c)
+  for (Color c : { WHITE, BLACK })
   {
     if (is_KBPsK(pos, c))
         e->scalingFunction[c] = &ScaleKBPsK[c];
