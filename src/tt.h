@@ -65,6 +65,7 @@ private:
 
 class TranspositionTable {
 
+  static constexpr int CacheLineSize = 64; // M.Z LP code
   static constexpr int ClusterSize = 3;
 
   struct Cluster {
@@ -72,10 +73,13 @@ class TranspositionTable {
     char padding[2]; // Pad to 32 bytes
   };
 
-  static_assert(sizeof(Cluster) == 32, "Unexpected Cluster size");
+  static_assert(CacheLineSize % sizeof(Cluster) == 0, "Cluster size incorrect"); // M.Z LP code
 
 public:
- ~TranspositionTable() { free(mem); }
+  // M.Z LP code
+  TranspositionTable() { mbSize_last_used = 0;  mbSize_last_used = 0; }
+ ~TranspositionTable() {}
+  // M.Z LP code
   void new_search() { generation8 += 8; } // Lower 3 bits are used by PV flag and Bound
   TTEntry* probe(const Key key, bool& found) const;
   int hashfull() const;
@@ -89,7 +93,10 @@ public:
 
 private:
   friend struct TTEntry;
-
+  // M.Z LP code
+  int64_t  mbSize_last_used;
+  bool large_pages_used;
+  // M.Z LP code
   size_t clusterCount;
   Cluster* table;
   void* mem;
